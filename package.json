@@ -43,8 +43,6 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@rainbow-me/rainbowkit": "^2.2.9",
-    "@reown/appkit": "^1.8.17",
-    "@reown/appkit-adapter-wagmi": "^1.8.17",
     "@tanstack/react-query": "^5.90.5",
     "@trpc/client": "^11.6.0",
     "@trpc/react-query": "^11.6.0",
@@ -87,6 +85,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "tronweb": "^6.1.1",
+    "valtio": "^2.1.3",
     "vaul": "^1.1.2",
     "viem": "^2.38.4",
     "wagmi": "^2.18.2",
@@ -117,5 +116,10 @@
     "vite": "^7.1.7",
     "vitest": "^2.1.4"
   },
-  "packageManager": "npm@10.8.2"
+  "packageManager": "npm@10.8.2",
+  "overrides": {
+    "@walletconnect/core": "2.21.1",
+    "@walletconnect/sign-client": "2.21.1",
+    "@walletconnect/universal-provider": "2.21.1"
+  }
 }
