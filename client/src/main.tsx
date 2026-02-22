@@ -82,6 +82,8 @@ const NON_FATAL_WALLET_ERROR_PATTERNS = [
   /cannot read properties of undefined \(reading ['"]list['"]\)/i,
   /publishcustom is not a function/i,
   /walletconnect core is already initialized/i,
+  /session topic doesn't exist/i,
+  /no matching key/i,
 ];
 
 function isNonFatalWalletError(reason: unknown): boolean {

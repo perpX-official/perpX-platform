@@ -118,23 +118,20 @@ function TradingViewChart({ symbol = 'BTCUSDT', mode = 'perpetual' }: TradingVie
         locale: 'en',
         toolbar_bg: '#0a0e1a',
         enable_publishing: false,
-        hide_side_toolbar: false,
+        // Side toolbar + study templates can crash intermittently on iOS WebKit.
+        // Keep chart stable on mobile by disabling those surfaces.
+        hide_side_toolbar: true,
         allow_symbol_change: true,
         container_id: containerId,
         backgroundColor: '#0a0e1a',
         gridColor: 'rgba(255, 255, 255, 0.06)',
         hide_top_toolbar: false,
         save_image: false,
-        studies: [
-          'MASimple@tv-basicstudies',
-        ],
+        studies: ['MASimple@tv-basicstudies'],
         disabled_features: [
           'use_localstorage_for_settings',
           'header_symbol_search',
-        ],
-        enabled_features: [
           'study_templates',
-          'side_toolbar_in_fullscreen_mode',
         ],
         overrides: {
           'paneProperties.background': '#0a0e1a',

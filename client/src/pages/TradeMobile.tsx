@@ -66,7 +66,7 @@ export default function TradeMobile() {
       <div className="flex-1 overflow-y-auto">
         {/* Chart Section - Fixed Height */}
         <div className="h-[300px] bg-card border-b border-white/10">
-          <TradingViewChart symbol="BINANCE:BTCUSDT" />
+          <TradingViewChart symbol="BTCUSDT" />
         </div>
 
         {/* Trading Panel */}
@@ -237,4 +237,3 @@ export default function TradeMobile() {
     </div>
   );
 }
-

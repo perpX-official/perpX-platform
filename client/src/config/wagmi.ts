@@ -1,7 +1,7 @@
 import { createConfig, createStorage, http } from 'wagmi';
 import { mainnet, arbitrum, base, optimism } from 'wagmi/chains';
 import { injected, walletConnect } from 'wagmi/connectors';
-import { getMetaMaskProvider } from '@/lib/evmProviders';
+import { getMetaMaskProvider, getSafePalProvider, getTrustProvider } from '@/lib/evmProviders';
 
 // WalletConnect Project ID - https://cloud.walletconnect.com
 export const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '7b3c2778deabef041da731133fab3568';
@@ -47,6 +47,22 @@ export const config = createConfig({
         id: 'metaMask',
         name: 'MetaMask',
         provider: (window: Window) => getMetaMaskProvider(window),
+      },
+      shimDisconnect: true,
+    }),
+    injected({
+      target: {
+        id: 'trustWallet',
+        name: 'Trust Wallet',
+        provider: (window: Window) => getTrustProvider(window),
+      },
+      shimDisconnect: true,
+    }),
+    injected({
+      target: {
+        id: 'safePal',
+        name: 'SafePal',
+        provider: (window: Window) => getSafePalProvider(window),
       },
       shimDisconnect: true,
     }),

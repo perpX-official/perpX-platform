@@ -27,6 +27,12 @@ interface UseSolanaWalletReturn extends SolanaWalletState {
   availableWallets: Array<{ id: string; name: string; icon: string; available: boolean }>;
 }
 
+function isWalletConnectSessionGone(error: unknown): boolean {
+  const text =
+    error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error ?? '');
+  return /session topic doesn't exist|no matching key/i.test(text);
+}
+
 // Get injected Solana wallet provider
 function getInjectedProvider(windowKey: string): any {
   const candidates = [windowKey];
@@ -66,17 +72,40 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
   useEffect(() => {
     return () => {
       if (signClientRef.current && sessionRef.current) {
-        try {
-          signClientRef.current.disconnect({
+        void signClientRef.current
+          .disconnect({
             topic: sessionRef.current.topic,
             reason: { code: 6000, message: 'User disconnected' },
+          })
+          .catch(() => {
+            // Ignore stale-session teardown failures.
           });
-        } catch {
-          // ignore
-        }
       }
     };
   }, []);
+
+  const clearWalletConnectState = useCallback(() => {
+    signClientRef.current = null;
+    sessionRef.current = null;
+    setWcUri(null);
+  }, []);
+
+  const disconnectWalletConnect = useCallback(async () => {
+    if (!signClientRef.current || !sessionRef.current) return;
+
+    try {
+      await signClientRef.current.disconnect({
+        topic: sessionRef.current.topic,
+        reason: { code: 6000, message: 'User disconnected' },
+      });
+    } catch (error) {
+      if (!isWalletConnectSessionGone(error)) {
+        // ignore
+      }
+    } finally {
+      clearWalletConnectState();
+    }
+  }, [clearWalletConnectState]);
 
   // Detect available wallets
   const availableWallets = SOLANA_WALLETS.map((w) => ({
@@ -128,6 +157,8 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
     setState((prev) => ({ ...prev, isPending: true, error: null }));
 
     try {
+      await disconnectWalletConnect();
+
       const client = await getWalletConnectClient();
       signClientRef.current = client;
 
@@ -169,9 +200,7 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
       });
     } catch (err: any) {
       const message = getWalletConnectionErrorMessage(err);
-      signClientRef.current = null;
-      sessionRef.current = null;
-      setWcUri(null);
+      clearWalletConnectState();
       setState((prev) => ({
         ...prev,
         isPending: false,
@@ -179,7 +208,7 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
       }));
       throw err;
     }
-  }, []);
+  }, [clearWalletConnectState, disconnectWalletConnect]);
 
   // Main connect function
   const connect = useCallback(
@@ -250,20 +279,8 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
     }
 
     // Disconnect WalletConnect
-    if (signClientRef.current && sessionRef.current) {
-      try {
-        await signClientRef.current.disconnect({
-          topic: sessionRef.current.topic,
-          reason: { code: 6000, message: 'User disconnected' },
-        });
-      } catch {
-        // ignore
-      }
-      signClientRef.current = null;
-      sessionRef.current = null;
-    }
+    await disconnectWalletConnect();
 
-    setWcUri(null);
     setState({
       address: null,
       isConnected: false,
@@ -272,7 +289,7 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
       error: null,
       walletName: null,
     });
-  }, []);
+  }, [disconnectWalletConnect]);
 
   // Sign message
   const signMessage = useCallback(
@@ -305,21 +322,36 @@ export function useSolanaWallet(): UseSolanaWalletReturn {
       const bs58Module = await import('bs58');
       const encodedMessage = bs58Module.default.encode(new TextEncoder().encode(message));
 
-      const result = await signClientRef.current.request({
-        topic: sessionRef.current.topic,
-        chainId: SOLANA_CHAINS.mainnet,
-        request: {
-          method: 'solana_signMessage',
-          params: {
-            message: encodedMessage,
-            pubkey: state.address,
+      let result: unknown;
+      try {
+        result = await signClientRef.current.request({
+          topic: sessionRef.current.topic,
+          chainId: SOLANA_CHAINS.mainnet,
+          request: {
+            method: 'solana_signMessage',
+            params: {
+              message: encodedMessage,
+              pubkey: state.address,
+            },
           },
-        },
-      });
+        });
+      } catch (error) {
+        if (isWalletConnectSessionGone(error)) {
+          clearWalletConnectState();
+          setState((prev) => ({
+            ...prev,
+            isConnected: false,
+            providerType: null,
+            error: 'WalletConnect session expired. Please reconnect.',
+          }));
+          throw new Error('WalletConnect session expired. Please reconnect.');
+        }
+        throw error;
+      }
 
       return (result as any)?.signature || null;
     },
-    [state.address, state.providerType]
+    [state.address, state.providerType, clearWalletConnectState]
   );
 
   return {

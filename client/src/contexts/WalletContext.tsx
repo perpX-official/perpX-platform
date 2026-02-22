@@ -16,7 +16,7 @@ interface WalletContextType {
   isPending: boolean;
 
   // Actions
-  connectEvm: (mode?: 'metamask' | 'walletconnect') => Promise<void>;
+  connectEvm: (mode?: 'metamask' | 'trust' | 'safepal' | 'walletconnect') => Promise<void>;
   connectTron: (mode?: 'auto' | 'tronlink' | 'walletconnect') => Promise<void>;
   connectSolana: (walletId?: string) => Promise<void>;
   disconnect: () => void;
@@ -147,7 +147,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Connect functions
   const connectEvm = useCallback(
-    async (mode: 'metamask' | 'walletconnect' = 'metamask') => {
+    async (mode: 'metamask' | 'trust' | 'safepal' | 'walletconnect' = 'metamask') => {
       if (evmConnectInFlightRef.current) {
         return evmConnectInFlightRef.current;
       }
@@ -167,10 +167,36 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const name = c.name.toLowerCase();
         return id === 'walletconnect' || name.includes('walletconnect');
       });
+      const trustConnector = connectors.find((c) => {
+        const id = c.id.toLowerCase();
+        const name = c.name.toLowerCase();
+        return id === 'trustwallet' || name.includes('trust');
+      });
+      const safePalConnector = connectors.find((c) => {
+        const id = c.id.toLowerCase();
+        const name = c.name.toLowerCase();
+        return id === 'safepal' || name.includes('safepal');
+      });
 
-      const targetConnector = mode === 'walletconnect' ? walletConnectConnector : metaMaskConnector;
+      const targetConnector =
+        mode === 'walletconnect'
+          ? walletConnectConnector
+          : mode === 'trust'
+          ? trustConnector
+          : mode === 'safepal'
+          ? safePalConnector
+          : metaMaskConnector;
       if (!targetConnector) {
-        throw new Error(mode === 'walletconnect' ? 'WalletConnect not available' : 'MetaMask not available');
+        if (mode === 'walletconnect') {
+          throw new Error('WalletConnect not available');
+        }
+        if (mode === 'trust') {
+          throw new Error('Trust Wallet not available');
+        }
+        if (mode === 'safepal') {
+          throw new Error('SafePal not available');
+        }
+        throw new Error('MetaMask not available');
       }
 
       if (mode === 'metamask') {

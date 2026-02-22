@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Wallet, Zap, Globe, Loader2, X, Copy, Check, AlertTriangle, LogOut } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
-import { EVM_MOBILE_WALLETS, SOLANA_MOBILE_WALLETS } from "@/config/walletConstants";
-import { detectMetaMaskAvailable } from "@/lib/evmProviders";
+import { EVM_MOBILE_WALLETS, SOLANA_MOBILE_WALLETS, TRON_MOBILE_WALLETS_DEEPLINK } from "@/config/walletConstants";
+import { detectMetaMaskAvailable, detectSafePalAvailable, detectTrustAvailable } from "@/lib/evmProviders";
 import { getWalletConnectionErrorMessage } from "@/lib/walletConnectionError";
 import { toast } from "sonner";
 import QRCode from "qrcode";
@@ -11,7 +11,6 @@ import {
   WalletWalletConnect,
   WalletPhantom,
   WalletTrust,
-  WalletSafe,
   NetworkTron,
 } from "@web3icons/react";
 
@@ -48,6 +47,8 @@ export function ChainSelectModal() {
   const hasTronExtension =
     typeof window !== "undefined" && (!!(window as any).tronLink || !!(window as any).tronWeb);
   const hasMetaMask = detectMetaMaskAvailable();
+  const hasTrustWallet = detectTrustAvailable();
+  const hasSafePal = detectSafePalAvailable();
   const hasPhantomSolana = solanaAvailableWallets.some(
     (wallet) => wallet.id === "phantom" && wallet.available
   );
@@ -65,6 +66,19 @@ export function ChainSelectModal() {
     if (typeof window === "undefined") return;
     const encodedUri = encodeURIComponent(uri);
     window.location.href = `${deepLinkPrefix}${encodedUri}`;
+  }, []);
+
+  const openTronLinkDappDeepLink = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const payload = encodeURIComponent(
+      JSON.stringify({
+        protocol: "tronlink",
+        version: "1.0",
+        action: "open",
+        url: window.location.href,
+      })
+    );
+    window.location.href = `${TRON_MOBILE_WALLETS_DEEPLINK.tronlink.deepLinkPrefix}${payload}`;
   }, []);
 
   const [view, setView] = useState<ModalView>("chains");
@@ -118,7 +132,7 @@ export function ChainSelectModal() {
       deepLinkPrefix = EVM_MOBILE_WALLETS[evmWcTarget].deepLinkPrefix;
     } else if (view === "tron_wc_qr" && tronWcUri) {
       mobileUri = tronWcUri;
-      deepLinkPrefix = EVM_MOBILE_WALLETS.walletconnect.deepLinkPrefix;
+      deepLinkPrefix = TRON_MOBILE_WALLETS_DEEPLINK.walletconnect.deepLinkPrefix;
     } else if (view === "wc_qr" && solanaWcUri) {
       mobileUri = solanaWcUri;
       deepLinkPrefix = SOLANA_MOBILE_WALLETS[solanaWcTarget].deepLinkPrefix;
@@ -244,6 +258,31 @@ export function ChainSelectModal() {
   const handleEvmWalletConnect = async (target: EvmWcTarget) => {
     if (connecting) return;
     setEvmWcTarget(target);
+
+    if (target === "trust" && hasTrustWallet) {
+      setConnecting(true);
+      try {
+        await connectEvm("trust");
+        handleClose();
+      } catch (err: any) {
+        toast.error(getWalletConnectionErrorMessage(err));
+        setConnecting(false);
+      }
+      return;
+    }
+
+    if (target === "safepal" && hasSafePal) {
+      setConnecting(true);
+      try {
+        await connectEvm("safepal");
+        handleClose();
+      } catch (err: any) {
+        toast.error(getWalletConnectionErrorMessage(err));
+        setConnecting(false);
+      }
+      return;
+    }
+
     setConnecting(true);
     setView("evm_wc_qr");
     try {
@@ -263,7 +302,8 @@ export function ChainSelectModal() {
   const handleTronExtensionConnect = async () => {
     if (connecting) return;
     if (!hasTronExtension && isMobileBrowser) {
-      await handleTronWalletConnect();
+      openTronLinkDappDeepLink();
+      handleClose();
       return;
     }
     setConnecting(true);
@@ -510,19 +550,31 @@ export function ChainSelectModal() {
             />
             <ChainButton
               label="SafePal"
-              subLabel={isMobileBrowser ? "Open SafePal App" : "WalletConnect (QR)"}
-              icon={<WalletSafe className="w-6 h-6" variant="branded" />}
+              subLabel={
+                hasSafePal
+                  ? "Injected wallet detected"
+                  : isMobileBrowser
+                  ? "Open SafePal App"
+                  : "WalletConnect"
+              }
+              icon={<SafePalIcon />}
               onClick={() => handleEvmWalletConnect("safepal")}
             />
             <ChainButton
               label="Trust Wallet"
-              subLabel={isMobileBrowser ? "Open Trust Wallet App" : "WalletConnect (QR)"}
+              subLabel={
+                hasTrustWallet
+                  ? "Injected wallet detected"
+                  : isMobileBrowser
+                  ? "Open Trust Wallet App"
+                  : "WalletConnect"
+              }
               icon={<WalletTrust className="w-6 h-6" variant="branded" />}
               onClick={() => handleEvmWalletConnect("trust")}
             />
             <ChainButton
               label="WalletConnect"
-              subLabel={isMobileBrowser ? "Open Wallet App" : "Scan QR code with mobile wallet"}
+              subLabel={isMobileBrowser ? "Open wallet app" : "Scan QR code with mobile wallet"}
               icon={<WalletWalletConnect className="w-6 h-6" variant="branded" />}
               onClick={() => handleEvmWalletConnect("walletconnect")}
             />
@@ -533,9 +585,13 @@ export function ChainSelectModal() {
         {view === "evm_wc_qr" && (
           <div className="flex flex-col items-center gap-4 py-2">
             <p className="text-sm text-white/60 text-center">
-              Scan with your EVM wallet app
+              {isMobileBrowser ? "Opening wallet app..." : "Scan with your EVM wallet app"}
             </p>
-            {evmWcUri && qrDataUrl ? (
+            {isMobileBrowser ? (
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
+                If the wallet app did not open, tap your wallet option again.
+              </div>
+            ) : evmWcUri && qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
                 <img
                   src={qrDataUrl}
@@ -579,7 +635,7 @@ export function ChainSelectModal() {
                 hasTronExtension
                   ? "Browser extension"
                   : isMobileBrowser
-                  ? "Open Tron wallet app"
+                  ? "Open TronLink app"
                   : "Install TronLink extension first"
               }
               icon={<NetworkTron className="w-6 h-6" variant="branded" />}
@@ -589,7 +645,7 @@ export function ChainSelectModal() {
 
             <ChainButton
               label="WalletConnect"
-              subLabel={isMobileBrowser ? "Open Wallet App" : "Scan QR code with mobile wallet"}
+              subLabel={isMobileBrowser ? "Open WalletConnect app" : "Scan QR code with mobile wallet"}
               icon={<WalletWalletConnect className="w-6 h-6" variant="branded" />}
               onClick={handleTronWalletConnect}
             />
@@ -604,9 +660,13 @@ export function ChainSelectModal() {
         {view === "tron_wc_qr" && (
           <div className="flex flex-col items-center gap-4 py-2">
             <p className="text-sm text-white/60 text-center">
-              Scan with your Tron-compatible wallet
+              {isMobileBrowser ? "Opening wallet app..." : "Scan with your Tron-compatible wallet"}
             </p>
-            {tronWcUri && qrDataUrl ? (
+            {isMobileBrowser ? (
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
+                WalletConnect opens an external wallet app on mobile.
+              </div>
+            ) : tronWcUri && qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
                 <img
                   src={qrDataUrl}
@@ -676,9 +736,13 @@ export function ChainSelectModal() {
         {view === "wc_qr" && (
           <div className="flex flex-col items-center gap-4 py-2">
             <p className="text-sm text-white/60 text-center">
-              Scan with your Solana wallet app
+              {isMobileBrowser ? "Opening wallet app..." : "Scan with your Solana wallet app"}
             </p>
-            {qrDataUrl ? (
+            {isMobileBrowser ? (
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
+                If no wallet opens, return and tap the wallet button again.
+              </div>
+            ) : qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
                 <img
                   src={qrDataUrl}
@@ -732,6 +796,14 @@ export function ChainSelectModal() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SafePalIcon() {
+  return (
+    <div className="w-6 h-6 rounded-full bg-[#1f5fff] text-white text-[10px] font-bold flex items-center justify-center">
+      SP
     </div>
   );
 }

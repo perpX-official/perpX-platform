@@ -28,6 +28,12 @@ interface UseTronWalletReturn extends TronWalletState {
   wcUri: string | null;
 }
 
+function isWalletConnectSessionGone(error: unknown): boolean {
+  const text =
+    error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error ?? '');
+  return /session topic doesn't exist|no matching key/i.test(text);
+}
+
 // Extend Window for TronLink
 declare global {
   interface Window {
@@ -68,17 +74,41 @@ export function useTronWallet(): UseTronWalletReturn {
   useEffect(() => {
     return () => {
       if (signClientRef.current && sessionRef.current) {
-        try {
-          signClientRef.current.disconnect({
+        void signClientRef.current
+          .disconnect({
             topic: sessionRef.current.topic,
             reason: { code: 6000, message: 'User disconnected' },
+          })
+          .catch(() => {
+            // Ignore stale-session teardown failures.
           });
-        } catch {
-          // ignore
-        }
       }
     };
   }, []);
+
+  const clearWalletConnectState = useCallback(() => {
+    signClientRef.current = null;
+    sessionRef.current = null;
+    approvalRef.current = null;
+    setWcUri(null);
+  }, []);
+
+  const disconnectWalletConnect = useCallback(async () => {
+    if (!signClientRef.current || !sessionRef.current) return;
+
+    try {
+      await signClientRef.current.disconnect({
+        topic: sessionRef.current.topic,
+        reason: { code: 6000, message: 'User disconnected' },
+      });
+    } catch (error) {
+      if (!isWalletConnectSessionGone(error)) {
+        // ignore
+      }
+    } finally {
+      clearWalletConnectState();
+    }
+  }, [clearWalletConnectState]);
 
   // Connect via browser extension (TronLink under the hood, but UI should say "Browser Extension")
   const connectExtension = useCallback(async () => {
@@ -145,6 +175,8 @@ export function useTronWallet(): UseTronWalletReturn {
     setState((prev) => ({ ...prev, isPending: true, error: null }));
 
     try {
+      await disconnectWalletConnect();
+
       const client = await getWalletConnectClient();
       signClientRef.current = client;
 
@@ -195,10 +227,7 @@ export function useTronWallet(): UseTronWalletReturn {
       });
     } catch (err: any) {
       const message = getWalletConnectionErrorMessage(err);
-      signClientRef.current = null;
-      sessionRef.current = null;
-      approvalRef.current = null;
-      setWcUri(null);
+      clearWalletConnectState();
       setState((prev) => ({
         ...prev,
         isPending: false,
@@ -206,7 +235,7 @@ export function useTronWallet(): UseTronWalletReturn {
       }));
       throw err;
     }
-  }, []);
+  }, [clearWalletConnectState, disconnectWalletConnect]);
 
   // Main connect function
   const connect = useCallback(
@@ -255,20 +284,7 @@ export function useTronWallet(): UseTronWalletReturn {
 
   // Disconnect
   const disconnect = useCallback(async () => {
-    if (signClientRef.current && sessionRef.current) {
-      try {
-        await signClientRef.current.disconnect({
-          topic: sessionRef.current.topic,
-          reason: { code: 6000, message: 'User disconnected' },
-        });
-      } catch {
-        // ignore
-      }
-      signClientRef.current = null;
-      sessionRef.current = null;
-    }
-    approvalRef.current = null;
-    setWcUri(null);
+    await disconnectWalletConnect();
     setState({
       address: null,
       chainId: null,
@@ -278,7 +294,7 @@ export function useTronWallet(): UseTronWalletReturn {
       isPending: false,
       error: null,
     });
-  }, []);
+  }, [disconnectWalletConnect]);
 
   // Sign message
   const signMessage = useCallback(
@@ -306,18 +322,33 @@ export function useTronWallet(): UseTronWalletReturn {
         throw new Error('WalletConnect session not available');
       }
 
-      const result = await signClientRef.current.request({
-        topic: sessionRef.current.topic,
-        chainId: state.chainId || TRON_CHAINS.mainnet,
-        request: {
-          method: 'tron_signMessage',
-          params: { message, address: state.address },
-        },
-      });
+      let result: unknown;
+      try {
+        result = await signClientRef.current.request({
+          topic: sessionRef.current.topic,
+          chainId: state.chainId || TRON_CHAINS.mainnet,
+          request: {
+            method: 'tron_signMessage',
+            params: { message, address: state.address },
+          },
+        });
+      } catch (error) {
+        if (isWalletConnectSessionGone(error)) {
+          clearWalletConnectState();
+          setState((prev) => ({
+            ...prev,
+            isConnected: false,
+            providerType: null,
+            error: 'WalletConnect session expired. Please reconnect.',
+          }));
+          throw new Error('WalletConnect session expired. Please reconnect.');
+        }
+        throw error;
+      }
 
       return typeof result === 'string' ? result : (result as any)?.signature || null;
     },
-    [state.address, state.providerType, state.chainId]
+    [state.address, state.providerType, state.chainId, clearWalletConnectState]
   );
 
   return {

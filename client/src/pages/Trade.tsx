@@ -8,6 +8,7 @@ import TradingViewChart from "@/components/TradingViewChart";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useRewardsState } from "@/hooks/useRewardsState";
 import { toast } from "sonner";
+import { isMobileDevice } from "@/config/walletConstants";
 
 // Base trading pairs configuration (prices will be updated in real-time)
 const TRADING_PAIRS_CONFIG = [
@@ -101,6 +102,11 @@ export default function Trade() {
 
   // ✅ Connect to Binance WebSocket for ALL trading pairs (for the dropdown list)
   useEffect(() => {
+    // iOS/Android WebViews often drop Binance sockets; keep mobile stable with REST-only pricing.
+    if (isMobileDevice()) {
+      return;
+    }
+
     // Create combined stream URL for all pairs
     const streams = TRADING_PAIRS_CONFIG.map(p => `${p.symbol.toLowerCase()}@ticker`).join('/');
     const wsUrl = `wss://stream.binance.com:9443/stream?streams=${streams}`;
@@ -157,6 +163,11 @@ export default function Trade() {
 
   // ✅ Connect to Binance WebSocket for the SELECTED pair (for the header display)
   useEffect(() => {
+    // iOS/Android WebViews often drop Binance sockets; keep mobile stable with REST-only pricing.
+    if (isMobileDevice()) {
+      return;
+    }
+
     const symbol = selectedPair.symbol.toLowerCase();
     const wsUrl = `wss://stream.binance.com:9443/ws/${symbol}@ticker`;
     
@@ -347,7 +358,18 @@ export default function Trade() {
 
         {/* Chart Section */}
         <div className="flex-shrink-0 bg-card/30 border-b border-white/5" style={{ height: '300px' }}>
-          <TradingViewChart symbol={selectedPair.symbol} mode={tradeMode} />
+          {isMobileDevice() ? (
+            <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-white/70">
+              <div className="text-lg font-semibold">{selectedPair.symbol}</div>
+              <div className="text-2xl font-bold">{formatPrice(currentPrice, selectedPair.symbol)}</div>
+              <div className={`text-sm ${priceChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
+              </div>
+              <div className="text-xs text-white/40">Mobile live chart temporarily disabled for stability</div>
+            </div>
+          ) : (
+            <TradingViewChart symbol={selectedPair.symbol} mode={tradeMode} />
+          )}
         </div>
 
         {/* Trading Panel */}
