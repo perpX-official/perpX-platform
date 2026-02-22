@@ -116,6 +116,47 @@ function installWalletErrorGuard() {
   });
 }
 
+function installDomMutationGuard() {
+  if (typeof window === "undefined") return;
+
+  const guardKey = "__PERPX_DOM_MUTATION_GUARD_INSTALLED__";
+  const w = window as Window & { [guardKey]?: boolean };
+  if (w[guardKey]) return;
+  w[guardKey] = true;
+
+  const originalRemoveChild = Node.prototype.removeChild;
+  Node.prototype.removeChild = function removeChildPatched<T extends Node>(
+    this: Node,
+    child: T
+  ) {
+    if (!child || child.parentNode !== this) {
+      return child;
+    }
+    try {
+      return originalRemoveChild.call(this, child) as T;
+    } catch {
+      return child;
+    }
+  };
+
+  const originalInsertBefore = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function insertBeforePatched<T extends Node>(
+    this: Node,
+    newNode: T,
+    referenceNode: Node | null
+  ) {
+    if (referenceNode && referenceNode.parentNode !== this) {
+      return this.appendChild(newNode) as T;
+    }
+    try {
+      return originalInsertBefore.call(this, newNode, referenceNode) as T;
+    } catch {
+      return this.appendChild(newNode) as T;
+    }
+  };
+}
+
+installDomMutationGuard();
 installWalletErrorGuard();
 
 const trpcClient = trpc.createClient({
