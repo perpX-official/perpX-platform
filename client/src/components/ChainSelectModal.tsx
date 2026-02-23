@@ -59,7 +59,11 @@ export function ChainSelectModal() {
   const openMetaMaskDeepLink = useCallback(() => {
     if (typeof window === "undefined") return;
     const current = window.location.href.replace(/^https?:\/\//, "");
-    window.location.href = `https://metamask.app.link/dapp/${current}`;
+    // Try app scheme first, then universal link fallback.
+    window.location.href = `metamask://dapp/${current}`;
+    window.setTimeout(() => {
+      window.location.href = `https://metamask.app.link/dapp/${current}`;
+    }, 900);
   }, []);
 
   const openWalletDeepLink = useCallback((deepLinkPrefix: string, uri: string) => {
@@ -130,9 +134,6 @@ export function ChainSelectModal() {
     if (view === "evm_wc_qr" && evmWcUri) {
       mobileUri = evmWcUri;
       deepLinkPrefix = EVM_MOBILE_WALLETS[evmWcTarget].deepLinkPrefix;
-    } else if (view === "tron_wc_qr" && tronWcUri) {
-      mobileUri = tronWcUri;
-      deepLinkPrefix = TRON_MOBILE_WALLETS_DEEPLINK.walletconnect.deepLinkPrefix;
     } else if (view === "wc_qr" && solanaWcUri) {
       mobileUri = solanaWcUri;
       deepLinkPrefix = SOLANA_MOBILE_WALLETS[solanaWcTarget].deepLinkPrefix;
@@ -645,7 +646,7 @@ export function ChainSelectModal() {
 
             <ChainButton
               label="WalletConnect"
-              subLabel={isMobileBrowser ? "Open WalletConnect app" : "Scan QR code with mobile wallet"}
+              subLabel={isMobileBrowser ? "Copy URI and open wallet app" : "Scan QR code with mobile wallet"}
               icon={<WalletWalletConnect className="w-6 h-6" variant="branded" />}
               onClick={handleTronWalletConnect}
             />
@@ -664,7 +665,7 @@ export function ChainSelectModal() {
             </p>
             {isMobileBrowser ? (
               <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
-                WalletConnect opens an external wallet app on mobile.
+                Copy URI and open your Tron wallet app manually.
               </div>
             ) : tronWcUri && qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">

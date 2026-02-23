@@ -56,15 +56,15 @@ export const TRON_MOBILE_WALLETS = [
 export const EVM_MOBILE_WALLETS = {
   walletconnect: {
     name: "WalletConnect",
-    deepLinkPrefix: "https://walletconnect.com/wc?uri=",
+    deepLinkPrefix: "wc://wc?uri=",
   },
   trust: {
     name: "Trust Wallet",
-    deepLinkPrefix: "https://link.trustwallet.com/wc?uri=",
+    deepLinkPrefix: "trust://wc?uri=",
   },
   safepal: {
     name: "SafePal",
-    deepLinkPrefix: "https://link.safepal.io/wc?uri=",
+    deepLinkPrefix: "safepal://wc?uri=",
   },
 } as const;
 
@@ -72,11 +72,11 @@ export const EVM_MOBILE_WALLETS = {
 export const SOLANA_MOBILE_WALLETS = {
   phantom: {
     name: "Phantom",
-    deepLinkPrefix: "https://phantom.app/ul/v1/connect?uri=",
+    deepLinkPrefix: "phantom://wc?uri=",
   },
   walletconnect: {
     name: "WalletConnect",
-    deepLinkPrefix: "https://walletconnect.com/wc?uri=",
+    deepLinkPrefix: "wc://wc?uri=",
   },
 } as const;
 
@@ -84,7 +84,7 @@ export const SOLANA_MOBILE_WALLETS = {
 export const TRON_MOBILE_WALLETS_DEEPLINK = {
   walletconnect: {
     name: "WalletConnect",
-    deepLinkPrefix: "https://walletconnect.com/wc?uri=",
+    deepLinkPrefix: "wc://wc?uri=",
   },
   tronlink: {
     name: "TronLink",
