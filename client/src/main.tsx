@@ -97,6 +97,36 @@ function isNonFatalWalletError(reason: unknown): boolean {
   return NON_FATAL_WALLET_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 }
 
+function clearStaleWalletConnectStorage() {
+  if (typeof window === "undefined") return;
+
+  const onceKey = "__PERPX_CLEARED_STALE_WC__";
+  if (sessionStorage.getItem(onceKey) === "1") return;
+
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (/^wc@2/i.test(key) || key.toLowerCase().includes("walletconnect")) {
+        keysToRemove.push(key);
+      }
+    }
+
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+
+    if (keysToRemove.length > 0) {
+      console.warn("[WalletGuard] Cleared stale WalletConnect storage keys:", keysToRemove.length);
+    }
+  } catch {
+    // ignore
+  } finally {
+    sessionStorage.setItem(onceKey, "1");
+  }
+}
+
 function installWalletErrorGuard() {
   if (typeof window === "undefined") return;
 
@@ -113,6 +143,13 @@ function installWalletErrorGuard() {
 
   window.addEventListener("unhandledrejection", (event) => {
     if (!isNonFatalWalletError(event.reason)) return;
+    const message =
+      event.reason instanceof Error
+        ? `${event.reason.message}\n${event.reason.stack ?? ""}`
+        : String(event.reason ?? "");
+    if (/session topic doesn't exist|no matching key/i.test(message)) {
+      clearStaleWalletConnectStorage();
+    }
     console.warn("[WalletGuard] Suppressed non-fatal wallet rejection:", event.reason);
     event.preventDefault();
   });

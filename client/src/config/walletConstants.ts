@@ -112,9 +112,18 @@ export const WC_METADATA = {
 
 // Helper: detect mobile device
 export function isMobileDevice(): boolean {
-  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+  if (typeof navigator === "undefined") return false;
+
+  const ua = navigator.userAgent || "";
+  const mobileUa =
+    /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+  const ipadDesktopMode = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  const coarsePointer =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+
+  return mobileUa || ipadDesktopMode || coarsePointer;
 }
 
 // Helper: validate Tron address format

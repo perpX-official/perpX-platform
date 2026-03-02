@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Wallet, Zap, Globe, Loader2, X, Copy, Check, AlertTriangle, LogOut } from "lucide-react";
 import { useWallet } from "@/contexts/WalletContext";
-import { EVM_MOBILE_WALLETS, SOLANA_MOBILE_WALLETS, TRON_MOBILE_WALLETS_DEEPLINK } from "@/config/walletConstants";
+import { EVM_MOBILE_WALLETS, SOLANA_MOBILE_WALLETS, TRON_MOBILE_WALLETS_DEEPLINK, isMobileDevice } from "@/config/walletConstants";
 import { detectMetaMaskAvailable, detectSafePalAvailable, detectTrustAvailable } from "@/lib/evmProviders";
 import { getWalletConnectionErrorMessage } from "@/lib/walletConnectionError";
 import { toast } from "sonner";
@@ -52,9 +52,7 @@ export function ChainSelectModal() {
   const hasPhantomSolana = solanaAvailableWallets.some(
     (wallet) => wallet.id === "phantom" && wallet.available
   );
-  const isMobileBrowser =
-    typeof navigator !== "undefined" &&
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  const isMobileBrowser = isMobileDevice();
 
   const openMetaMaskDeepLink = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -92,7 +90,6 @@ export function ChainSelectModal() {
   const [evmWcTarget, setEvmWcTarget] = useState<EvmWcTarget>("walletconnect");
   const [solanaWcTarget, setSolanaWcTarget] = useState<SolanaWcTarget>("walletconnect");
   const [pendingSwitchChain, setPendingSwitchChain] = useState<'evm' | 'tron' | 'sol' | null>(null);
-  const openedMobileUriRef = useRef<string | null>(null);
 
   // Generate QR code when URI changes
   const activeUri =
@@ -125,26 +122,22 @@ export function ChainSelectModal() {
     }
   }, [solanaWcUri, view]);
 
-  useEffect(() => {
+  const handleOpenMobileWalletApp = useCallback(() => {
     if (!isMobileBrowser) return;
 
-    let mobileUri: string | null = null;
-    let deepLinkPrefix: string | null = null;
-
     if (view === "evm_wc_qr" && evmWcUri) {
-      mobileUri = evmWcUri;
-      deepLinkPrefix = EVM_MOBILE_WALLETS[evmWcTarget].deepLinkPrefix;
-    } else if (view === "wc_qr" && solanaWcUri) {
-      mobileUri = solanaWcUri;
-      deepLinkPrefix = SOLANA_MOBILE_WALLETS[solanaWcTarget].deepLinkPrefix;
+      openWalletDeepLink(EVM_MOBILE_WALLETS[evmWcTarget].deepLinkPrefix, evmWcUri);
+      return;
     }
 
-    if (!mobileUri || !deepLinkPrefix) return;
+    if (view === "tron_wc_qr" && tronWcUri) {
+      openWalletDeepLink(TRON_MOBILE_WALLETS_DEEPLINK.walletconnect.deepLinkPrefix, tronWcUri);
+      return;
+    }
 
-    const launchKey = `${view}:${deepLinkPrefix}:${mobileUri}`;
-    if (openedMobileUriRef.current === launchKey) return;
-    openedMobileUriRef.current = launchKey;
-    openWalletDeepLink(deepLinkPrefix, mobileUri);
+    if (view === "wc_qr" && solanaWcUri) {
+      openWalletDeepLink(SOLANA_MOBILE_WALLETS[solanaWcTarget].deepLinkPrefix, solanaWcUri);
+    }
   }, [
     isMobileBrowser,
     view,
@@ -166,7 +159,6 @@ export function ChainSelectModal() {
       setEvmWcTarget("walletconnect");
       setSolanaWcTarget("walletconnect");
       setPendingSwitchChain(null);
-      openedMobileUriRef.current = null;
     }
   }, [isChainSelectOpen]);
 
@@ -181,7 +173,6 @@ export function ChainSelectModal() {
     setEvmWcTarget("walletconnect");
     setSolanaWcTarget("walletconnect");
     setPendingSwitchChain(null);
-    openedMobileUriRef.current = null;
   };
 
   // Format address for display
@@ -589,8 +580,14 @@ export function ChainSelectModal() {
               {isMobileBrowser ? "Opening wallet app..." : "Scan with your EVM wallet app"}
             </p>
             {isMobileBrowser ? (
-              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
-                If the wallet app did not open, tap your wallet option again.
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center space-y-3">
+                <p>Tap below to open {EVM_MOBILE_WALLETS[evmWcTarget].name}.</p>
+                <button
+                  onClick={handleOpenMobileWalletApp}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+                >
+                  Open {EVM_MOBILE_WALLETS[evmWcTarget].name}
+                </button>
               </div>
             ) : evmWcUri && qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
@@ -664,8 +661,14 @@ export function ChainSelectModal() {
               {isMobileBrowser ? "Opening wallet app..." : "Scan with your Tron-compatible wallet"}
             </p>
             {isMobileBrowser ? (
-              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
-                Copy URI and open your Tron wallet app manually.
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center space-y-3">
+                <p>Tap below to open your WalletConnect app.</p>
+                <button
+                  onClick={handleOpenMobileWalletApp}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+                >
+                  Open Wallet App
+                </button>
               </div>
             ) : tronWcUri && qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
@@ -740,8 +743,14 @@ export function ChainSelectModal() {
               {isMobileBrowser ? "Opening wallet app..." : "Scan with your Solana wallet app"}
             </p>
             {isMobileBrowser ? (
-              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center">
-                If no wallet opens, return and tap the wallet button again.
+              <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 text-center space-y-3">
+                <p>Tap below to open {SOLANA_MOBILE_WALLETS[solanaWcTarget].name}.</p>
+                <button
+                  onClick={handleOpenMobileWalletApp}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+                >
+                  Open {SOLANA_MOBILE_WALLETS[solanaWcTarget].name}
+                </button>
               </div>
             ) : qrDataUrl ? (
               <div className="p-3 bg-white rounded-xl">
